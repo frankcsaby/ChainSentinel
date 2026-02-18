@@ -1,0 +1,13 @@
+RISK KNOWLEDGE BASE: TOKENOMICS & DISTRIBUTION
+----------------------------------------------
+1. CENTRALIZATION RISK (Whale Dominance):
+   - High Risk: Top 10 holders own more than 20% of the total supply (excluding exchange wallets and burn addresses).
+   - Danger: One large holder can crash the price by selling everything at once.
+
+2. UNFAIR LAUNCH:
+   - High Risk: Developers kept >30% of supply for "Team" or "Marketing" without a vesting schedule.
+   - Safe Standard: Team allocation should be locked and released linearly over 1-2 years (Vesting).
+
+3. INFLATIONARY PRESSURE:
+   - High Risk: The "Max Supply" is infinite or the "Circulating Supply" is very low compared to "Total Supply" (e.g., only 5% unlocked).
+   - Consequence: As more tokens are unlocked, the price will likely drop due to dilution.

@@ -1,0 +1,13 @@
+RISK KNOWLEDGE BASE: TECHNICAL SECURITY AUDIT
+---------------------------------------------
+1. AUDIT STATUS:
+   - Gold Standard: Audited by CertiK, Hacken, or OpenZeppelin.
+   - Medium Risk: Audited by unknown/small firms.
+   - High Risk: "No Audit" or "Audit in progress".
+
+2. OWNERSHIP RENOUNCED:
+   - Safe: Contract ownership is "renounced" (nobody can change the code anymore).
+   - Risky: Ownership is active. The owner can potentially mint new tokens (hyperinflation), change taxes, or pause trading.
+
+3. MINT FUNCTION:
+   - Critical Risk: If the contract has a "Mint()" function accessible by the owner, they can print infinite tokens and dump them on the market.

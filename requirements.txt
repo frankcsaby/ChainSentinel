@@ -1,0 +1,16 @@
+aiohttp
+ollama
+pandas
+numpy
+matplotlib
+fpdf
+openpyxl
+pydantic
+pydantic-settings
+typer
+rich
+loguru
+duckduckgo-search
+python-dotenv
+pytest
+pytest-asyncio

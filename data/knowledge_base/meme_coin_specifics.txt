@@ -1,0 +1,13 @@
+RISK KNOWLEDGE BASE: MEME COIN SPECIFIC RISKS
+---------------------------------------------
+CONTEXT: Meme coins have no utility and rely 100% on community hype.
+
+1. COPYRIGHT INFRINGEMENT:
+   - Risk: Tokens named after copyrighted characters (e.g., "Squid Game Token", "DisneyCoin").
+   - Consequence: Likely to be sued or shut down. Extremely high risk of being a rug pull.
+
+2. ANONYMOUS TEAMS:
+   - Note: While typical for meme coins, anonymous teams + unlocked liquidity = 99% Rug Pull probability.
+
+3. ROADMAP REALISM:
+   - Red Flag: A meme coin promising to build a "Quantum Blockchain" or "AI Metaverse" in 1 month. This is usually a lie to hype investors.

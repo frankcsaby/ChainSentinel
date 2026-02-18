@@ -1,0 +1,21 @@
+RISK KNOWLEDGE BASE: COMMON SCAM PATTERNS
+-----------------------------------------
+1. HONEYPOT SCAM:
+   - Definition: A token smart contract that allows users to buy but prevents them from selling.
+   - Indicators:
+     * "100% Sell Tax" or extremely high sell fees (e.g., >50%).
+     * Code contains functions like "disableTrading()" or "blacklist()".
+     * Only the creator wallet can sell.
+
+2. RUG PULL (Liquidity Drain):
+   - Definition: Developers withdraw all liquidity from the DEX (Decentralized Exchange), making the token worthless.
+   - Indicators:
+     * Liquidity is NOT locked (or locked for a very short time, e.g., < 1 month).
+     * One wallet holds >50% of the total supply.
+     * The developers are completely anonymous with no social reputation.
+
+3. FAKE AIRDROP / PHISHING:
+   - Definition: Users are promised free tokens but must connect their wallet to a malicious site.
+   - Indicators:
+     * Website asks for "Seed Phrase" or "Private Key" (IMMEDIATE RED FLAG).
+     * Unrealistic promises (e.g., "Claim 1000 ETH for free").

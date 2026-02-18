@@ -1,0 +1,15 @@
+RISK KNOWLEDGE BASE: MARKET MANIPULATION
+----------------------------------------
+1. WASH TRADING:
+   - Definition: The developer buys and sells their own token to create fake volume and attract investors.
+   - Indicators:
+     * High trading volume but price doesn't move.
+     * Transactions happen at exact intervals (bot activity).
+
+2. SNIPER BOTS:
+   - Definition: Bots that buy a token in the same second it launches.
+   - Risk: They pump the price up immediately and dump on real investors minutes later.
+
+3. LIQUIDITY TO MARKET CAP RATIO:
+   - Healthy: Liquidity is at least 10-20% of the Market Cap.
+   - Suspicious: High Market Cap ($10M) but very low Liquidity ($5k). This means you cannot sell large amounts without crashing the price (High Slippage).
