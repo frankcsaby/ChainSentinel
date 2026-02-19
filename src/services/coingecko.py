@@ -10,6 +10,7 @@ class CoinGeckoService:
     async def get_coin_data(self, coin_id: str, retries: int = 3) -> Optional[Dict[str, Any]]:
         """
         Aszinkron lekérdezés újrapróbálkozási mechanizmussal (Retry Logic).
+        Ez hozza le a pillanatnyi adatokat, leírásokat és közösségi statisztikákat.
         """
         url = f"{self.BASE_URL}/coins/{coin_id}"
         params = {
@@ -50,3 +51,40 @@ class CoinGeckoService:
             
             logger.error(f"Sikertelen lekérdezés {retries} próba után: {coin_id}")
             return None
+
+    async def get_historical_prices(self, coin_id: str, days: int = 30) -> list:
+        """
+        Letölti az elmúlt X nap történelmi árfolyamadatait (Time-Series).
+        Ez felelős azért, hogy a PDF generátor meg tudja rajzolni a trendvonalat.
+        """
+        url = f"{self.BASE_URL}/coins/{coin_id}/market_chart"
+        params = {
+            "vs_currency": "usd", 
+            "days": str(days), 
+            "interval": "daily"
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            try:
+                logger.info(f"Történelmi adatok lekérése ({days} nap): {coin_id}")
+                async with session.get(url, params=params, timeout=settings.API_TIMEOUT) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        # A CoinGecko [timestamp, price] listák listáját adja vissza
+                        # Nekünk csak a price (ár) kell, ami az index 1-en van.
+                        prices = [item[1] for item in data.get('prices', [])]
+                        return prices
+                    
+                    elif response.status == 429:
+                        logger.warning("Rate limit a történelmi adatoknál!")
+                        # Mivel ez általában másodlagos adat, nem csinálunk végtelen retry-t,
+                        # csak várunk picit és üres listával térünk vissza, ha nem megy.
+                        await asyncio.sleep(5)
+                        return []
+                    else:
+                        logger.error(f"Történelmi adat API hiba: {response.status}")
+                        return []
+                        
+            except Exception as e:
+                logger.error(f"Hiba a történelmi adatok letöltésekor: {e}")
+                return []
