@@ -22,23 +22,32 @@ def test_risk_engine_math():
     assert result['quantitative_score'] < 50  # Stabil projektnek kell lennie
     assert result['metrics']['liquidity_ratio'] == 1000 / 50000
 
-# --- 2. COINGECKO API MOCKOLÁSA (Nem hívjuk a netet) ---
+# --- 2. COINGECKO API MOCKOLÁSA (JAVÍTOTT VERZIÓ) ---
 @pytest.mark.asyncio
 async def test_coingecko_service_mocked(mocker):
     service = CoinGeckoService()
     
-    # Szimuláljuk az aiohttp választ
+    # Szimuláljuk a sikeres HTTP választ
     mock_response = AsyncMock()
     mock_response.status = 200
     mock_response.json.return_value = {"name": "MockCoin", "symbol": "MCK"}
     
+    # Javítás: Helyesen mockoljuk az `async with session.get(...)` részt
+    mock_get = AsyncMock()
+    mock_get.__aenter__.return_value = mock_response
+    
+    # Javítás: Helyesen mockoljuk az `async with aiohttp.ClientSession()` részt
     mock_session = AsyncMock()
-    mock_session.__aenter__.return_value.get.return_value.__aenter__.return_value = mock_response
+    mock_session.get.return_value = mock_get
+    mock_session.__aenter__.return_value = mock_session
     
     # Kicseréljük az aiohttp.ClientSession-t a saját Mock-unkra
     mocker.patch("aiohttp.ClientSession", return_value=mock_session)
     
+    # Teszteljük a függvényt
     data = await service.get_coin_data("mockcoin")
+    
+    # Ellenőrizzük az eredményt
     assert data is not None
     assert data["name"] == "MockCoin"
 
