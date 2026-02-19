@@ -6,21 +6,17 @@ from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from loguru import logger
 
-# --- SAJÁT MODULOK IMPORTÁLÁSA ---
-# Győződj meg róla, hogy ezek a fájlok léteznek a megfelelő mappákban!
 from src.services.coingecko import CoinGeckoService
-from src.services.web_search import WebSearchService  # <--- Az új kereső modul
+from src.services.web_search import WebSearchService
 from src.core.llm_engine import LLMEngine
 from src.core.rag_engine import RAGEngine
-from src.core.risk_engine import RiskEngine          # <--- Az új matekos modul
+from src.core.risk_engine import RiskEngine
 from src.utils.report_gen import ReportGenerator
 from config.settings import settings
 
-# --- INICIALIZÁLÁS ---
 app = typer.Typer()
 console = Console()
 
-# Szolgáltatások példányosítása
 cg_service = CoinGeckoService()
 web_search = WebSearchService()
 llm = LLMEngine()
@@ -29,220 +25,100 @@ risk_engine = RiskEngine()
 
 @app.command()
 def dashboard():
-    """
-    📈 Élő Piaci Műszerfal (Dashboard)
-    Védett mód: Lassított lekérdezés a Rate Limit elkerülése érdekében.
-    """
+    """📈 Gyorsított Piaci Műszerfal aszinkron párhuzamosítással."""
     console.clear()
     console.rule(f"[bold blue]{settings.APP_NAME} - MARKET DASHBOARD[/bold blue]")
 
-    async def show_market():
-        # Ezeket a coinokat figyeljük a főoldalon
-        target_coins = ["bitcoin", "ethereum", "solana", "ripple", "pepe", "cardano"]
-        market_data = []
+    async def fetch_coin(coin: str, sem: asyncio.Semaphore, progress: Progress, task_id):
+        async with sem:
+            # 1 másodperc késleltetés a CoinGecko limit miatt, de a Semaphore miatt ez szabályozott
+            await asyncio.sleep(1.0) 
+            data = await cg_service.get_coin_data(coin)
+            progress.update(task_id, advance=1)
+            if data:
+                metrics = risk_engine.calculate_risk_metrics(data)
+                data['risk_score'] = metrics['quantitative_score']
+            return data
 
-        with Progress(SpinnerColumn(), TextColumn("[cyan]Piaci adatok letöltése (kérlek várj)..."), transient=True) as progress:
+    async def show_market():
+        target_coins = ["bitcoin", "ethereum", "solana", "ripple", "pepe", "cardano"]
+        
+        # Párhuzamosítás korlátozása: egyszerre max 2 kérés menjen a CoinGecko felé
+        semaphore = asyncio.Semaphore(2)
+        
+        with Progress(SpinnerColumn(), TextColumn("[cyan]Adatok letöltése párhuzamosan..."), transient=True) as progress:
             task = progress.add_task("", total=len(target_coins))
             
-            for coin in target_coins:
-                # 1. Adatletöltés
-                data = await cg_service.get_coin_data(coin)
-                
-                if data:
-                    # Kiszámoljuk a gyors kockázati pontszámot a táblázathoz
-                    metrics = risk_engine.calculate_risk_metrics(data)
-                    data['risk_score'] = metrics['quantitative_score']
-                    market_data.append(data)
-                
-                progress.update(task, advance=1)
-                
-                # 2. Rate Limit védelem (fontos!)
-                await asyncio.sleep(1.2) 
+            # PÁRHUZAMOS FUTTATÁS
+            tasks = [fetch_coin(coin, semaphore, progress, task) for coin in target_coins]
+            results = await asyncio.gather(*tasks)
 
-        # Táblázat felépítése
-        table = Table(title="🔥 LIVE MARKET DATA & RISK ANALYSIS 🔥", border_style="green")
-        table.add_column("Rank", justify="center", style="cyan")
-        table.add_column("Name", style="magenta")
-        table.add_column("Price (USD)", justify="right", style="green")
-        table.add_column("24h Change", justify="right")
-        table.add_column("Math Risk Score", justify="center") # Új oszlop!
+        market_data = [res for res in results if res is not None]
+
+        table = Table(title="🔥 LIVE MARKET DATA 🔥", border_style="green")
+        table.add_column("Rank", justify="center"); table.add_column("Name", style="magenta")
+        table.add_column("Price (USD)", justify="right"); table.add_column("24h Change", justify="right")
+        table.add_column("Math Risk Score", justify="center")
 
         for coin in market_data:
-            m_data = coin.get('market_data', {})
-            price = m_data.get('current_price', {}).get('usd', 0)
-            change = m_data.get('price_change_percentage_24h', 0)
-            rank = coin.get('market_cap_rank', 'N/A')
-            risk_score = coin.get('risk_score', 50)
+            price = coin.get('market_data', {}).get('current_price', {}).get('usd', 0)
+            change = coin.get('market_data', {}).get('price_change_percentage_24h', 0)
+            score = coin.get('risk_score', 50)
             
-            # Formázás és Színezés
-            change_str = f"{change:.2f}%"
-            change_style = "green" if change > 0 else "red"
+            c_style = "green" if change > 0 else "red"
+            r_style = "green" if score < 40 else ("yellow" if score < 70 else "red")
             
-            # Kockázat színezése (0-100)
-            risk_style = "green" if risk_score < 40 else ("yellow" if risk_score < 70 else "red")
-
-            table.add_row(
-                str(rank),
-                coin.get('name'),
-                f"${price:,.2f}",
-                f"[{change_style}]{change_str}[/{change_style}]",
-                f"[{risk_style}]{risk_score:.0f}/100[/{risk_style}]"
-            )
-
+            table.add_row(str(coin.get('market_cap_rank', 'N/A')), coin.get('name'), 
+                          f"${price:,.2f}", f"[{c_style}]{change:.2f}%[/{c_style}]", 
+                          f"[{r_style}]{score:.0f}/100[/{r_style}]")
         console.print(table)
-        console.print("\n[dim]Tipp: Részletes elemzéshez: python -m src.main audit [token_neve][/dim]")
 
     asyncio.run(show_market())
 
 @app.command()
 def audit(token: str):
-    """
-    🛡️ Deep Audit: 4 szintű elemzés (Adat + Matek + Hírek + RAG).
-    """
+    """🛡️ Deep Audit párhuzamos lekérdezésekkel."""
     async def run_audit():
         console.rule(f"[bold red]DEEP AUDIT: {token.upper()}[/bold red]")
         
-        with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as progress:
-            
-            # 1. API ADATOK
-            progress.add_task("[cyan]1/4 Adatok letöltése CoinGecko-ról...", total=None)
+        with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as progress:
+            progress.add_task("[cyan]Adatok letöltése...", total=None)
             data = await cg_service.get_coin_data(token)
-            
             if not data:
-                console.print(f"[bold red]❌ A '{token}' token nem található, vagy API hiba történt![/bold red]")
-                return
+                console.print("[red]❌ Token nem található![/red]"); return
 
-            # 2. TUDÁSBÁZIS (RAG)
-            progress.add_task("[yellow]2/4 Tudásbázis (.txt) betöltése...", total=None)
-            context = rag.load_context()
-
-            # 3. KOCKÁZATI MOTOR (MATEK) & HÍREK (WEB)
-            progress.add_task("[blue]3/4 Kvantitatív elemzés és Hírek keresése...", total=None)
+            progress.add_task("[blue]Párhuzamos feladatok (RAG & Web Search) futtatása...", total=None)
             
-            # Matek futtatása
-            risk_metrics = risk_engine.calculate_risk_metrics(data)
-            math_score = risk_metrics['quantitative_score']
-            liquidity = risk_metrics['metrics'].get('liquidity_ratio', 0)
+            # RAG és Hírek keresése EGYSZERRE (Párhuzamosan)
+            rag_task = asyncio.to_thread(rag.load_context)
+            news_task = web_search.search_news(data['name'])
             
-            # Hírek keresése
-            latest_news = web_search.search_news(data['name'])
-
-            # 4. AI AGY (LLM)
-            progress.add_task(f"[magenta]4/4 AI Elemzés generálása ({settings.MODEL_NAME})...", total=None)
+            context, latest_news = await asyncio.gather(rag_task, news_task)
             
-            # Prompt összerakása
-            desc = data.get('description', {}).get('en', '')[:1000]
-            stats = f"Price: ${data['market_data']['current_price']['usd']}, ATH Change: {data['market_data']['ath_change_percentage']['usd']}%"
+            math_score = risk_engine.calculate_risk_metrics(data)['quantitative_score']
 
-            system_prompt = (
-                "You are a Senior Crypto Risk Auditor. "
-                "Your goal is to detect SCAMS based on quantitative data, news, and knowledge base rules. "
-                "Output STRICT JSON only."
-            )
+            progress.add_task(f"[magenta]AI Elemzés ({settings.MODEL_NAME})...", total=None)
             
             user_prompt = (
-                f"PROJECT: {data['name']}\n"
-                f"MATH RISK SCORE: {math_score}/100 (Calculated by algorithms)\n"
-                f"LIQUIDITY RATIO: {liquidity}\n"
-                f"STATS: {stats}\n"
-                f"DESCRIPTION: {desc}\n\n"
-                f"LATEST WEB NEWS: {latest_news}\n\n"
-                f"KNOWLEDGE BASE RULES: {context}\n\n"
-                "REQUIRED JSON OUTPUT:\n"
-                "{\n"
-                '  "verdict": "Safe" or "Scam" or "High Risk",\n'
-                '  "score": (int 0-100, combine math score with your judgment),\n'
-                '  "summary": "Executive summary (max 3 sentences)",\n'
-                '  "pros": ["Strength 1", "Strength 2"],\n'
-                '  "cons": ["Risk 1", "Risk 2"]\n'
-                "}"
+                f"PROJECT: {data['name']}\nMATH RISK: {math_score}/100\n"
+                f"NEWS: {latest_news}\nRULES: {context}\n"
+                "REQUIRED JSON: {'verdict': 'Safe/Scam/High Risk', 'score': 0-100, 'summary': 'text', 'pros': [], 'cons': []}"
             )
             
-            analysis = llm.analyze_json(user_prompt, system_prompt)
+            # ASYNC AI HÍVÁS
+            analysis = await llm.analyze_json(user_prompt, "You are a Crypto Auditor. Output JSON.")
 
-        # EREDMÉNY MEGJELENÍTÉSE
         if not analysis or "error" in analysis:
-            console.print(f"[red]Hiba az AI elemzésben: {analysis.get('error', 'Unknown')}[/red]")
+            console.print("[red]Hiba az AI elemzésben.[/red]")
         else:
             verdict = analysis.get('verdict', 'Unknown')
             color = "green" if verdict == "Safe" else "red"
+            console.print(Panel(f"[bold]Verdict: [{color}]{verdict}[/{color}][/bold]\nScore: {analysis.get('score')}/100", border_style=color))
             
-            # Panel a konzolra
-            console.print(Panel(
-                f"[bold]Verdict: [{color}]{verdict}[/{color}][/bold]\n"
-                f"Final Risk Score: {analysis.get('score')}/100\n"
-                f"(Algorithmic Base Score: {math_score}/100)\n\n"
-                f"[italic]{analysis.get('summary')}[/italic]\n\n"
-                f"[bold]Latest News Context:[/bold]\n{latest_news[:150]}...",
-                title=f"AUDIT RESULT: {token.upper()}", border_style=color
-            ))
-
-            # PDF Generálás
-            pdf_path = ReportGenerator.create_pdf(analysis, token)
-            if pdf_path:
-                console.print(f"\n[green]✅ PDF Jelentés elmentve: {pdf_path}[/green]")
+            path = ReportGenerator.create_pdf(analysis, token)
+            if path: console.print(f"[green]✅ PDF: {path}[/green]")
 
     asyncio.run(run_audit())
-
-@app.command()
-def portfolio(budget: int = 10000, strategy: str = "balanced"):
-    """
-    💰 AI Portfólió Tanácsadó (Excel exporttal).
-    Használat: python -m src.main portfolio --budget 5000 --strategy safe
-    """
-    async def run_portfolio():
-        console.rule("[bold green]ROBO-ADVISOR AI[/bold green]")
-        
-        with Progress(SpinnerColumn(), TextColumn("[magenta]Portfólió stratégia generálása..."), transient=True) as progress:
-            progress.add_task("", total=None)
-            
-            # Demó jelöltek
-            candidates = "Bitcoin, Ethereum, Solana, USDC, Pepe, Cardano, Polkadot, Chainlink"
-            
-            system_prompt = "You are a Portfolio Manager. Output JSON only."
-            user_prompt = (
-                f"Create a portfolio allocation for ${budget} USD.\n"
-                f"Strategy: {strategy} (Safe/Balanced/Risky).\n"
-                f"Candidates available: {candidates}\n\n"
-                "REQUIRED JSON OUTPUT STRUCTURE:\n"
-                "{\n"
-                '  "allocation": {"Asset Name": Amount_USD (int)},\n'
-                '  "reasoning": "Why you chose this distribution"\n'
-                "}"
-            )
-            
-            plan = llm.analyze_json(user_prompt, system_prompt)
-
-        if not plan or "error" in plan:
-            console.print("[red]Hiba a generáláskor.[/red]")
-        else:
-            console.print(Panel(
-                f"[bold]Stratégia:[/bold] {strategy.upper()}\n[bold]Indoklás:[/bold] {plan.get('reasoning')}",
-                title="BEFEKTETÉSI TERV", border_style="blue"
-            ))
-            
-            # Táblázat
-            table = Table(title="Asset Allocation")
-            table.add_column("Asset", style="cyan")
-            table.add_column("Amount ($)", justify="right", style="green")
-            table.add_column("Percentage", justify="right")
-            
-            allocs = plan.get('allocation', {})
-            export_data = []
-            
-            for asset, amount in allocs.items():
-                percent = (amount / budget) * 100
-                table.add_row(asset, f"${amount:,.2f}", f"{percent:.1f}%")
-                export_data.append({"Asset": asset, "Amount ($)": amount, "Percentage": f"{percent:.1f}%"})
-                
-            console.print(table)
-            
-            # Excel mentés
-            excel_path = ReportGenerator.export_to_excel(export_data, f"Portfolio_{strategy}")
-            if excel_path:
-                console.print(f"\n[cyan]📊 Excel exportálva: {excel_path}[/cyan]")
-
-    asyncio.run(run_portfolio())
 
 if __name__ == "__main__":
     app()

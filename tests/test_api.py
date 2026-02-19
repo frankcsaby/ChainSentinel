@@ -1,51 +1,71 @@
 import pytest
-import pytest_asyncio
+from unittest.mock import AsyncMock, patch, MagicMock
 from src.services.coingecko import CoinGeckoService
 from src.core.risk_engine import RiskEngine
 from src.services.web_search import WebSearchService
+from src.core.llm_engine import LLMEngine
 
-# --- 1. KOCKÁZATI MOTOR TESZT ---
-def test_risk_calculation():
-    """Teszteli, hogy a matek helyes-e."""
+# --- 1. KOCKÁZATI MOTOR (Nincs szükség hálózatra) ---
+def test_risk_engine_math():
     engine = RiskEngine()
-    
-    # Mock adat: Egy biztonságos coin (pl. Bitcoin)
-    safe_data = {
+    fake_data = {
         "market_cap_rank": 1,
         "market_data": {
-            "price_change_percentage_24h": 1.5,
-            "total_volume": {"usd": 50000000},
-            "market_cap": {"usd": 1000000000}
+            "price_change_percentage_24h": 1.0,
+            "total_volume": {"usd": 1000},
+            "market_cap": {"usd": 50000}
         },
-        "developer_data": {"stars": 50000}
+        "developer_data": {"stars": 1500}
     }
     
-    result = engine.calculate_risk_metrics(safe_data)
-    
-    # A Bitcoin kockázatának alacsonynak kell lennie ( < 50)
-    assert result["quantitative_score"] < 50
-    assert "liquidity_ratio" in result["metrics"]
+    result = engine.calculate_risk_metrics(fake_data)
+    assert result['quantitative_score'] < 50  # Stabil projektnek kell lennie
+    assert result['metrics']['liquidity_ratio'] == 1000 / 50000
 
-# --- 2. WEB SEARCH TESZT ---
-def test_web_search():
-    """Teszteli, hogy a kereső ad-e vissza szöveget."""
-    service = WebSearchService()
-    result = service.search_news("Ethereum")
-    
-    assert isinstance(result, str)
-    assert len(result) > 0
-    # Ellenőrizzük, hogy nem hibaüzenet jött-e vissza (ha van net)
-    if "unavailable" not in result:
-        print(f"\nKeresési eredmény minta: {result[:50]}...")
-
-# --- 3. API TESZT (Async) ---
+# --- 2. COINGECKO API MOCKOLÁSA (Nem hívjuk a netet) ---
 @pytest.mark.asyncio
-async def test_coingecko_api():
-    """Teszteli, hogy a CoinGecko API elérhető-e."""
+async def test_coingecko_service_mocked(mocker):
     service = CoinGeckoService()
     
-    data = await service.get_coin_data("bitcoin")
+    # Szimuláljuk az aiohttp választ
+    mock_response = AsyncMock()
+    mock_response.status = 200
+    mock_response.json.return_value = {"name": "MockCoin", "symbol": "MCK"}
     
+    mock_session = AsyncMock()
+    mock_session.__aenter__.return_value.get.return_value.__aenter__.return_value = mock_response
+    
+    # Kicseréljük az aiohttp.ClientSession-t a saját Mock-unkra
+    mocker.patch("aiohttp.ClientSession", return_value=mock_session)
+    
+    data = await service.get_coin_data("mockcoin")
     assert data is not None
-    assert data["name"] == "Bitcoin"
-    assert "market_data" in data
+    assert data["name"] == "MockCoin"
+
+# --- 3. WEB SEARCH MOCKOLÁSA ---
+@pytest.mark.asyncio
+async def test_web_search_async(mocker):
+    service = WebSearchService()
+    
+    # Kicseréljük a belső _search_sync függvényt, hogy azonnal visszatérjen
+    mocker.patch.object(service, '_search_sync', return_value="1. [Test Hack] - Fake news")
+    
+    result = await service.search_news("TestToken")
+    assert "Test Hack" in result
+
+# --- 4. LLM ENGINE MOCKOLÁSA ---
+@pytest.mark.asyncio
+async def test_llm_engine_mocked(mocker):
+    engine = LLMEngine()
+    
+    # Szimuláljuk a sikeres JSON választ az Ollamától
+    mock_ollama_response = {'message': {'content': '{"verdict": "Safe", "score": 90}'}}
+    
+    # Mockoljuk az AsyncClient.chat hívást
+    mocker.patch('ollama.AsyncClient.chat', new_callable=AsyncMock, return_value=mock_ollama_response)
+    
+    result = await engine.analyze_json("Test prompt", "Test system prompt")
+    
+    assert "error" not in result
+    assert result["verdict"] == "Safe"
+    assert result["score"] == 90

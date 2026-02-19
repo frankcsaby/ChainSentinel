@@ -7,14 +7,16 @@ from config.settings import settings
 class LLMEngine:
     def __init__(self):
         self.model = settings.MODEL_NAME
+        # Async kliens inicializálása
+        self.client = ollama.AsyncClient()
 
-    def analyze_json(self, prompt: str, system_prompt: str) -> Dict[str, Any]:
+    async def analyze_json(self, prompt: str, system_prompt: str) -> Dict[str, Any]:
         """
-        Kényszerített JSON választ kér az LLM-től.
+        Aszinkron LLM hívás JSON kimenettel.
         """
         try:
-            logger.debug("LLM Elemzés indítása...")
-            response = ollama.chat(
+            logger.debug("Aszinkron LLM Elemzés indítása...")
+            response = await self.client.chat(
                 model=self.model,
                 format='json',
                 messages=[
