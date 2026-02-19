@@ -32,3 +32,4 @@ anyio>=4.4.0        # Fix: Race Condition
 fonttools>=4.43.0   # Fix: XML External Entity Injection (XXE)
 zipp>=3.19.1        # Fix: Infinite Loop
 numpy>=1.22.0       # Fix: Különböző memóriakezelési hibák
+pyarrow>=14.0.1 # not directly required, pinned by Snyk to avoid a vulnerability
