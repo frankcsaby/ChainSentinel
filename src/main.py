@@ -29,7 +29,7 @@ risk_engine = RiskEngine()
 @app.command()
 def dashboard():
     """
-    📈 Élő Piaci Műszerfal aszinkron párhuzamosítással és Rate Limit védelemmel.
+    live market dashboard: await async, rate limit handling
     """
     console.clear()
     console.rule(f"[bold blue]{settings.APP_NAME} - MARKET DASHBOARD[/bold blue]")
@@ -49,19 +49,16 @@ def dashboard():
     async def show_market():
         target_coins = ["bitcoin", "ethereum", "solana", "ripple", "pepe", "cardano"]
         
-        # Párhuzamosítás korlátozása: egyszerre max 2 kérés menjen
         semaphore = asyncio.Semaphore(2)
         
         with Progress(SpinnerColumn(), TextColumn("[cyan]Piaci adatok letöltése párhuzamosan..."), transient=True) as progress:
             task = progress.add_task("", total=len(target_coins))
             
-            # PÁRHUZAMOS FUTTATÁS
             tasks = [fetch_coin(coin, semaphore, progress, task) for coin in target_coins]
             results = await asyncio.gather(*tasks)
 
         market_data = [res for res in results if res is not None]
 
-        # Táblázat felépítése
         table = Table(title="🔥 LIVE MARKET DATA & RISK ANALYSIS 🔥", border_style="green")
         table.add_column("Rank", justify="center", style="cyan")
         table.add_column("Name", style="magenta")
@@ -92,15 +89,11 @@ def dashboard():
 
 @app.command()
 def audit(token: str):
-    """
-    🛡️ Enterprise Deep Audit: AI, Kvantitatív elemzés, Hírek és Generatív PDF.
-    """
     async def run_audit():
         console.rule(f"[bold red]ENTERPRISE DEEP AUDIT: {token.upper()}[/bold red]")
         
         with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as progress:
             
-            # 1. API ADATOK LETÖLTÉSE
             progress.add_task("[cyan]1/4 API adatok és Történelmi árak letöltése...", total=None)
             data = await cg_service.get_coin_data(token)
             
@@ -110,23 +103,18 @@ def audit(token: str):
                 
             historical_prices = await cg_service.get_historical_prices(data['id'], days=30)
 
-            # 2. KVANTITATÍV ÉS OSINT ELEMZÉS
             progress.add_task("[blue]2/4 Algoritmikus Kockázatelemzés és Web OSINT...", total=None)
             
-            # Kockázati Dimenziók (Matek)
             risk_data = risk_engine.calculate_risk_metrics(data)
             math_score = risk_data['quantitative_score']
             dimensions = risk_data['dimensions']
             
-            # Párhuzamos RAG (Tudásbázis) és Hírek (Web Search) futtatása
             rag_task = asyncio.to_thread(rag.load_context)
             news_task = web_search.search_news(data['name'])
             context, latest_news = await asyncio.gather(rag_task, news_task)
 
-            # 3. AI MOTOR (LLM)
             progress.add_task(f"[magenta]3/4 AI Generatív Elemzés ({settings.MODEL_NAME})...", total=None)
             
-            # Ártrend számítása a prompthoz
             trend_info = "Not available"
             if historical_prices and len(historical_prices) > 7:
                 start_price = historical_prices[0]
@@ -165,7 +153,6 @@ def audit(token: str):
             
             analysis = await llm.analyze_json(user_prompt, system_prompt)
 
-            # 4. RIPORT KÉSZÍTÉS (PDF + Képek)
             progress.add_task("[green]4/4 PDF Riport és Grafikonok renderelése...", total=None)
             
             pdf_path = None
@@ -177,7 +164,6 @@ def audit(token: str):
                     risk_dimensions=dimensions
                 )
 
-        # --- EREDMÉNY MEGJELENÍTÉSE ---
         if not analysis or "error" in analysis:
             console.print(f"[red]Hiba az AI elemzésben: {analysis.get('error', 'Unknown')}[/red]")
         else:
@@ -200,10 +186,7 @@ def audit(token: str):
 
 @app.command()
 def portfolio(budget: int = 10000, strategy: str = "balanced"):
-    """
-    💰 AI Portfólió Tanácsadó (Excel exporttal).
-    Használat: python -m src.main portfolio --budget 5000 --strategy safe
-    """
+
     async def run_portfolio():
         console.rule("[bold green]ROBO-ADVISOR AI[/bold green]")
         
