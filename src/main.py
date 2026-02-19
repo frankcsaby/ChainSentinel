@@ -29,47 +29,47 @@ risk_engine = RiskEngine()
 @app.command()
 def dashboard():
     """
-    live market dashboard: await async, rate limit handling
+    📈 Élő Piaci Műszerfal aszinkron párhuzamosítással és ML Risk integrációval.
     """
     console.clear()
-    console.rule(f"[bold blue]{settings.APP_NAME} - MARKET DASHBOARD[/bold blue]")
+    console.rule(f"[bold blue]{settings.APP_NAME} - INSTITUTIONAL MARKET DASHBOARD[/bold blue]")
 
     async def fetch_coin(coin: str, sem: asyncio.Semaphore, progress: Progress, task_id):
         async with sem:
-            # Rövid várakozás a 429-es CoinGecko hiba elkerülése miatt
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(1.0) # Rate Limit védelem
             data = await cg_service.get_coin_data(coin)
             progress.update(task_id, advance=1)
             
             if data:
                 metrics = risk_engine.calculate_risk_metrics(data)
                 data['risk_score'] = metrics['quantitative_score']
+                data['ml_active'] = metrics.get('ml_active', False)
             return data
 
     async def show_market():
         target_coins = ["bitcoin", "ethereum", "solana", "ripple", "pepe", "cardano"]
-        
         semaphore = asyncio.Semaphore(2)
         
-        with Progress(SpinnerColumn(), TextColumn("[cyan]Piaci adatok letöltése párhuzamosan..."), transient=True) as progress:
+        with Progress(SpinnerColumn(), TextColumn("[cyan]Piaci adatok letöltése és ML elemzés párhuzamosan..."), transient=True) as progress:
             task = progress.add_task("", total=len(target_coins))
-            
             tasks = [fetch_coin(coin, semaphore, progress, task) for coin in target_coins]
             results = await asyncio.gather(*tasks)
 
         market_data = [res for res in results if res is not None]
 
-        table = Table(title="🔥 LIVE MARKET DATA & RISK ANALYSIS 🔥", border_style="green")
+        # Táblázat felépítése
+        table = Table(title="🔥 LIVE MARKET DATA & ML RISK ANALYSIS 🔥", border_style="green")
         table.add_column("Rank", justify="center", style="cyan")
         table.add_column("Name", style="magenta")
         table.add_column("Price (USD)", justify="right", style="green")
         table.add_column("24h Change", justify="right")
-        table.add_column("Math Risk Score", justify="center")
+        table.add_column("ML Risk Score", justify="center")
 
         for coin in market_data:
             price = coin.get('market_data', {}).get('current_price', {}).get('usd', 0)
             change = coin.get('market_data', {}).get('price_change_percentage_24h', 0)
             score = coin.get('risk_score', 50)
+            is_ml = "🤖 " if coin.get('ml_active') else ""
             
             c_style = "green" if change > 0 else "red"
             r_style = "green" if score < 40 else ("yellow" if score < 70 else "red")
@@ -79,21 +79,25 @@ def dashboard():
                 coin.get('name'), 
                 f"${price:,.2f}", 
                 f"[{c_style}]{change:.2f}%[/{c_style}]", 
-                f"[{r_style}]{score:.0f}/100[/{r_style}]"
+                f"{is_ml}[{r_style}]{score:.0f}/100[/{r_style}]"
             )
             
         console.print(table)
-        console.print("\n[dim]Tipp: Részletes elemzéshez használd: python -m src.main audit [token_neve][/dim]")
+        console.print("\n[dim]Tipp: Részletes intézményi elemzéshez használd: python -m src.main audit [token_neve][/dim]")
 
     asyncio.run(show_market())
 
 @app.command()
 def audit(token: str):
+    """
+    🛡️ Enterprise Deep Audit: AI, ML, Kvantitatív (Quant) elemzés, Hírek és Generatív PDF.
+    """
     async def run_audit():
-        console.rule(f"[bold red]ENTERPRISE DEEP AUDIT: {token.upper()}[/bold red]")
+        console.rule(f"[bold red]QUANTITATIVE DEEP AUDIT: {token.upper()}[/bold red]")
         
         with Progress(SpinnerColumn(), TextColumn("{task.description}"), transient=True) as progress:
             
+            # 1. API ADATOK LETÖLTÉSE
             progress.add_task("[cyan]1/4 API adatok és Történelmi árak letöltése...", total=None)
             data = await cg_service.get_coin_data(token)
             
@@ -103,57 +107,64 @@ def audit(token: str):
                 
             historical_prices = await cg_service.get_historical_prices(data['id'], days=30)
 
-            progress.add_task("[blue]2/4 Algoritmikus Kockázatelemzés és Web OSINT...", total=None)
+            # 2. KVANTITATÍV ÉS ML ELEMZÉS
+            progress.add_task("[blue]2/4 Machine Learning és Kvantitatív Pénzügyi metrikák...", total=None)
             
+            # Machine Learning Kockázati Dimenziók
             risk_data = risk_engine.calculate_risk_metrics(data)
             math_score = risk_data['quantitative_score']
             dimensions = risk_data['dimensions']
             
+            # Kvantitatív (Quant Finance) Metrikák
+            quant_metrics = risk_engine.get_quant_finance_metrics(historical_prices)
+            ann_vol = quant_metrics['annualized_volatility_pct']
+            mdd = quant_metrics['max_drawdown_pct']
+            sharpe = quant_metrics['sharpe_ratio']
+            trend_status = quant_metrics['trend_status']
+            
+            # Párhuzamos RAG (Tudásbázis) és Hírek (Web Search) futtatása
             rag_task = asyncio.to_thread(rag.load_context)
             news_task = web_search.search_news(data['name'])
             context, latest_news = await asyncio.gather(rag_task, news_task)
 
-            progress.add_task(f"[magenta]3/4 AI Generatív Elemzés ({settings.MODEL_NAME})...", total=None)
-            
-            trend_info = "Not available"
-            if historical_prices and len(historical_prices) > 7:
-                start_price = historical_prices[0]
-                end_price = historical_prices[-1]
-                trend_pct = ((end_price - start_price) / start_price) * 100
-                trend_info = f"30-Day Trend: {trend_pct:.2f}% (From ${start_price:.4f} to ${end_price:.4f})"
+            # 3. AI MOTOR (LLM)
+            progress.add_task(f"[magenta]3/4 AI Hedge Fund Elemzés ({settings.MODEL_NAME})...", total=None)
 
             desc = data.get('description', {}).get('en', '')[:1000]
-            stats = f"Price: ${data['market_data']['current_price']['usd']}, ATH Change: {data['market_data']['ath_change_percentage']['usd']}%"
 
             system_prompt = (
-                "You are a Senior Quant Risk Auditor. "
-                "Detect SCAMS based on quantitative data, news, and knowledge base rules. "
+                "You are a Senior Quantitative Analyst at a top-tier Hedge Fund. "
+                "Write a highly professional institutional-grade risk report. "
+                "Use the provided Volatility, Max Drawdown, and Sharpe Ratio in your analysis. "
                 "Output STRICT JSON only."
             )
             
             user_prompt = (
-                f"PROJECT: {data['name']}\n"
-                f"OVERALL MATH RISK SCORE: {math_score}/100\n"
-                f"DIMENSIONS (0-10, higher is safer): {dimensions}\n"
-                f"PRICE ACTION: {trend_info}\n"
-                f"STATS: {stats}\n"
-                f"DESCRIPTION: {desc}\n\n"
-                f"LATEST WEB NEWS: {latest_news}\n\n"
-                f"KNOWLEDGE BASE RULES: {context}\n\n"
+                f"ASSET: {data['name']}\n"
+                f"ML RISK SCORE (Random Forest Model): {math_score}/100\n"
+                f"--- QUANT METRICS ---\n"
+                f"Annualized Volatility: {ann_vol}%\n"
+                f"Maximum Drawdown (30d): {mdd}%\n"
+                f"Sharpe Ratio Proxy: {sharpe}\n"
+                f"Liquidity Score (0-10): {dimensions['Liquidity Strength']}\n"
+                f"Trend Status: {trend_status}\n"
+                f"---------------------\n"
+                f"NEWS: {latest_news}\nRULES: {context}\n\n"
                 "REQUIRED JSON OUTPUT STRUCTURE:\n"
                 "{\n"
                 '  "verdict": "Safe" or "Scam" or "High Risk",\n'
-                '  "score": (int 0-100, combine math score with your judgment),\n'
-                '  "summary": "Executive summary (max 3 sentences)",\n'
-                '  "chart_analysis": "Write a 3-sentence technical analysis based on the PRICE ACTION and DIMENSIONS provided above.",\n'
-                '  "pros": ["Strength 1", "Strength 2"],\n'
-                '  "cons": ["Risk 1", "Risk 2"]\n'
+                '  "score": (int 0-100),\n'
+                '  "summary": "Executive summary (Include mentions of Sharpe, Volatility and Drawdown)",\n'
+                '  "chart_analysis": "Technical analysis of volatility and momentum based on the quant metrics.",\n'
+                '  "pros": ["Institutional strength 1", "Strength 2"],\n'
+                '  "cons": ["Liquidity/Volatility Risk 1", "Risk 2"]\n'
                 "}"
             )
             
             analysis = await llm.analyze_json(user_prompt, system_prompt)
 
-            progress.add_task("[green]4/4 PDF Riport és Grafikonok renderelése...", total=None)
+            # 4. RIPORT KÉSZÍTÉS (PDF + Képek)
+            progress.add_task("[green]4/4 PDF Riport és Bollinger Szalagok renderelése...", total=None)
             
             pdf_path = None
             if analysis and "error" not in analysis:
@@ -164,6 +175,7 @@ def audit(token: str):
                     risk_dimensions=dimensions
                 )
 
+        # --- EREDMÉNY MEGJELENÍTÉSE KIVÁLÓ MINŐSÉGBEN ---
         if not analysis or "error" in analysis:
             console.print(f"[red]Hiba az AI elemzésben: {analysis.get('error', 'Unknown')}[/red]")
         else:
@@ -172,21 +184,28 @@ def audit(token: str):
             
             console.print(Panel(
                 f"[bold]Verdict: [{color}]{verdict}[/{color}][/bold]\n"
-                f"Final Risk Score: {analysis.get('score')}/100 (Math Base: {math_score}/100)\n\n"
-                f"[italic]{analysis.get('summary')}[/italic]\n\n"
-                f"[bold]Trend Info:[/bold] {trend_info}",
-                title=f"AUDIT SUCCESS: {token.upper()}", border_style=color
+                f"Final AI Risk Score: {analysis.get('score')}/100 (ML Base: {math_score}/100)\n\n"
+                f"[bold cyan]--- QUANTITATIVE METRICS ---[/bold cyan]\n"
+                f"• Sharpe Ratio: {sharpe}\n"
+                f"• Max Drawdown: {mdd}%\n"
+                f"• Annual Volatility: {ann_vol}%\n"
+                f"• Trend: {trend_status}\n\n"
+                f"[italic]{analysis.get('summary')}[/italic]",
+                title=f"INSTITUTIONAL AUDIT: {token.upper()}", border_style=color
             ))
 
             if pdf_path:
                 console.print(f"\n[bold green]✅ ENTERPRISE PDF RIPORT ELKÉSZÜLT:[/bold green] {pdf_path}")
-                console.print("[dim]A riport tartalmazza a Trendvonalat (SMA indikátorral) és a Kockázati Radar ábrát.[/dim]")
+                console.print("[dim]A riport tartalmazza a Bollinger Szalagokat (Volatility Bands) és a Radar ábrát.[/dim]")
 
     asyncio.run(run_audit())
 
 @app.command()
 def portfolio(budget: int = 10000, strategy: str = "balanced"):
-
+    """
+    💰 AI Portfólió Tanácsadó (Excel exporttal).
+    Használat: python -m src.main portfolio --budget 5000 --strategy safe
+    """
     async def run_portfolio():
         console.rule("[bold green]ROBO-ADVISOR AI[/bold green]")
         
