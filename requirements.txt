@@ -1,7 +1,6 @@
-aiohttp
+# --- FŐ KERETRENDSZEREK ÉS LOGIKA ---
 ollama
 pandas
-numpy
 matplotlib
 fpdf
 openpyxl
@@ -12,5 +11,24 @@ rich
 loguru
 duckduckgo-search
 python-dotenv
+
+# --- WEBAPP (STREAMLIT) ---
+streamlit
+plotly
+
+# --- TESZTELÉS ---
 pytest
 pytest-asyncio
+pytest-mock
+
+# ==========================================
+# 🛡️ BIZTONSÁGI PATCHEK (SNYK VULNERABILITY FIXES)
+# ==========================================
+# A Snyk által jelzett sebezhetőségek javítása:
+aiohttp>=3.9.0      # Fix: Improper Input Validation
+pillow>=10.0.0      # Fix: Uncontrolled Resource Consumption
+h11>=0.16.0         # Fix: HTTP Request Smuggling
+anyio>=4.4.0        # Fix: Race Condition
+fonttools>=4.43.0   # Fix: XML External Entity Injection (XXE)
+zipp>=3.19.1        # Fix: Infinite Loop
+numpy>=1.22.0       # Fix: Különböző memóriakezelési hibák
